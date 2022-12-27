@@ -1,0 +1,14 @@
+{
+  "name": "node-deploy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": {
+    "node-deploy": "src/index.js"
+  },
+  "license": "MIT",
+  "author": "EmirMC <emirmertc@gmail.com>",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "prompt-sync": "^4.2.0"
+  }
+}
