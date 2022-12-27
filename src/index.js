@@ -88,7 +88,11 @@ const getTfStateOutputs = async () => {
   }
   console.log("Checking for DB_HOST in .env file...");
   const DB_HOST = accessEnv("DB_HOST");
-  if (DB_HOST !== undefined && DB_HOST !== outputs["service-db-address"]) {
+  if (
+    DB_HOST !== undefined &&
+    DB_HOST !== outputs["service-db-address"] &&
+    outputs["service-db-address"] !== ""
+  ) {
     console.log("Updating .env file with new DB_HOST...");
     setEnvValue("DB_HOST", outputs["service-db-address"].value);
   }
