@@ -24,6 +24,9 @@ const AWS_REGION = accessEnv("AWS_DEFAULT_REGION");
 const AWS_SECRET_ACCESS_KEY = accessEnv("AWS_SECRET_ACCESS_KEY");
 const AWS_ACCESS_KEY_ID = accessEnv("AWS_ACCESS_KEY_ID");
 const PORT = accessEnv("PORT", 3000);
+const DB_NAME = accessEnv("DB_NAME", false);
+const DB_USER = accessEnv("DB_USER", false);
+const DB_PASSWORD = accessEnv("DB_PASSWORD", false);
 
 const readEnvVars = () => fs.readFileSync(rel(".env"), "utf-8").split(os.EOL);
 
@@ -55,9 +58,9 @@ const getTfStateOutputs = async () => {
         -var 'aws-secret-key=${AWS_SECRET_ACCESS_KEY}' \
         -var 'app-name=${APPLICATION_NAME}' \
         -var 'container-port=${PORT}' \
-        -var 'service-db-name=${accessEnv("DB_NAME")}' \
-        -var 'service-db-username=${accessEnv("DB_USER")}' \
-        -var 'service-db-password=${accessEnv("DB_PASSWORD")}' \
+        ${DB_NAME ? "-var 'service-db-name=" + DB_NAME + "'" : ""} \
+        ${DB_USER ? "-var 'service-db-username=" + DB_USER + "'" : ""} \
+        ${DB_PASSWORD ? "-var 'service-db-password=" + DB_PASSWORD + "'" : ""} \
         -out=PLAN`,
     { cwd: rel("./terraform") }
   );
@@ -74,12 +77,8 @@ const getTfStateOutputs = async () => {
     process.exit();
   }
   console.log("Checking for DB_HOST in .env file...");
-  const DB_HOST = accessEnv("DB_HOST");
-  if (
-    DB_HOST !== undefined &&
-    DB_HOST !== outputs["service-db-address"] &&
-    outputs["service-db-address"] !== ""
-  ) {
+  const DB_HOST = accessEnv("DB_HOST", false);
+  if (DB_HOST !== outputs["service-db-address"] && outputs["service-db-address"] !== "") {
     console.log("Updating .env file with new DB_HOST...");
     setEnvValue("DB_HOST", outputs["service-db-address"].value);
   }

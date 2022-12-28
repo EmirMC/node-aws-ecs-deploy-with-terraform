@@ -2,7 +2,7 @@ const cache = {};
 
 const accessEnv = (key, defaultValue) => {
   if (!(key in process.env)) {
-    if (defaultValue) return defaultValue;
+    if (defaultValue !== undefined) return defaultValue;
     throw new Error(`${key} not found in process.env!`);
   }
 
