@@ -8,8 +8,8 @@ const util = require("util");
 const prompt = require("prompt-sync")({ sigint: true });
 
 const deploymentDir = process.argv[2];
-const is_terraform_force = String(process.argv[3]).includes("terraform");
 const is_deploy = String(process.argv[3]).includes("deploy") || !process.argv[3];
+const is_gateway = String(process.argv[3]).includes("gateway");
 
 const rel = (relPath) => path.resolve(deploymentDir, relPath);
 
@@ -44,18 +44,12 @@ const setEnvValue = (key, value) => {
 };
 
 const getTfStateOutputs = async () => {
-  var tfFilePath = rel("./terraform/terraform.tfstate");
-  if (!fs.existsSync(tfFilePath) || is_terraform_force) {
-    console.log("Terraform state file does not exist or force command runned!");
-    const answer = is_terraform_force
-      ? "y"
-      : prompt('Do you want us to autorun "terraform init" and "terraform apply"? ');
-    if (answer.toLocaleLowerCase() == "y" || answer.toLocaleLowerCase() == "yes") {
-      console.log('Running "terraform init"...');
-      await exec("terraform init", { cwd: rel("./terraform") });
-      console.log('Running "terraform plan"...');
-      await exec(
-        `terraform plan \
+  const tfFilePath = rel("./terraform/terraform.tfstate");
+  console.log('Running "terraform init"...');
+  await exec("terraform init", { cwd: rel("./terraform") });
+  console.log('Running "terraform plan"...');
+  await exec(
+    `terraform plan \
         -var 'aws-region=${AWS_REGION}' \
         -var 'aws-access-key=${AWS_ACCESS_KEY_ID}' \
         -var 'aws-secret-key=${AWS_SECRET_ACCESS_KEY}' \
@@ -65,20 +59,13 @@ const getTfStateOutputs = async () => {
         -var 'service-db-username=${accessEnv("DB_USER")}' \
         -var 'service-db-password=${accessEnv("DB_PASSWORD")}' \
         -out=PLAN`,
-        { cwd: rel("./terraform") }
-      );
-      console.log('Running "terraform apply"...');
-      await exec("terraform apply PLAN", { cwd: rel("./terraform") });
+    { cwd: rel("./terraform") }
+  );
+  console.log('Running "terraform apply"...');
+  await exec("terraform apply PLAN", { cwd: rel("./terraform") });
 
-      console.log("Success! Removing PLAN file...");
-      fs.unlinkSync(rel("./terraform/PLAN"));
-
-      tfFilePath = rel("./terraform/terraform.tfstate");
-    } else {
-      console.error("Halting...");
-      process.exit();
-    }
-  }
+  console.log("Success! Removing PLAN file...");
+  fs.unlinkSync(rel("./terraform/PLAN"));
 
   console.log("Reading terraform.tfstate file...");
   const { outputs } = JSON.parse(fs.readFileSync(tfFilePath, "utf-8"));
@@ -99,9 +86,31 @@ const getTfStateOutputs = async () => {
   return outputs;
 };
 
+const set_service_dns_url = async () => {
+  const ecs_service_list = await exec(`aws elbv2 describe-load-balancers --output json`, {
+    cwd: deploymentDir,
+  });
+  if (ecs_service_list.stderr) {
+    console.error(ecs_service_list.stderr);
+    process.exit();
+  }
+  console.log("Setting environment variables... Service URL's:");
+  for (lb of JSON.parse(ecs_service_list.stdout).LoadBalancers) {
+    console.log(
+      lb.LoadBalancerName.split("-")[0].toLocaleUpperCase() + "_SERVICE_URL=http://" + lb.DNSName
+    );
+    setEnvValue(
+      lb.LoadBalancerName.split("-")[0].toLocaleUpperCase() + "_SERVICE_URL",
+      "http://" + lb.DNSName
+    );
+  }
+};
+
 (async () => {
   console.time("Running time");
   const outputs = await getTfStateOutputs();
+  if (is_gateway) await set_service_dns_url();
+
   if (!is_deploy) {
     console.log("Deploy command not found. Process finished!");
     process.exit();
@@ -134,6 +143,8 @@ const getTfStateOutputs = async () => {
     }`,
     { cwd: deploymentDir }
   );
+
+  console.log("Building Docker image...");
   await exec(
     `docker build --build-arg arch=amd64 --build-arg PORT=${PORT} -t yemctech-${APPLICATION_NAME} .`,
     {
