@@ -50,6 +50,8 @@ const getTfStateOutputs = async () => {
   const tfFilePath = rel("./terraform/terraform.tfstate");
   console.log('Running "terraform init"...');
   await exec("terraform init", { cwd: rel("./terraform") });
+  console.log('Running "terraform get -update"...');
+  await exec("terraform get -update", { cwd: rel("./terraform") });
   console.log('Running "terraform plan"...');
   await exec(
     `terraform plan \
